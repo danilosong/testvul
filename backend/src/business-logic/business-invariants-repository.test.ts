@@ -57,20 +57,23 @@ describe("business-invariants-repository (Section 13.17)", () => {
     });
   });
 
-  it("rejects a condition that isn't valid declarative DSL data before ever storing it", () => {
+  it.each(["process.exit()", "require('fs')", "constructor.constructor('return process')()", "state.status === 'PAID' && numberChanged"])(
+    "rejects the arbitrary expression %j before ever storing it",
+    (maliciousExpression) => {
     const db = freshDb();
     expect(() =>
       createBusinessInvariant(db, {
         targetId: 1,
         name: "bad invariant",
         objectType: "Ticket",
-        condition: "state.status === 'PAID' && numberChanged" as unknown,
+        condition: maliciousExpression as unknown,
         expected: true,
         severity: "HIGH",
       }),
     ).toThrow(InvalidInvariantConditionError);
     expect(listBusinessInvariants(db, 1, "Ticket")).toHaveLength(0);
-  });
+    },
+  );
 
   it("scopes listing by objectType, never leaking one object type's invariants into another's", () => {
     const db = freshDb();

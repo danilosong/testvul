@@ -41,6 +41,21 @@ describe("Browser Network Policy against a real Chromium browser and the fixture
     await context.close();
   }, 30_000);
 
+  it("strips Authorization and Cookie from the actual outgoing cross-origin HTTPS request", async () => {
+    const context = await browser.newContext({ ignoreHTTPSErrors: true });
+    await context.setExtraHTTPHeaders({ Authorization: "Bearer userA-token" });
+    await context.addCookies([{ name: "session", value: "userA-token", domain: "127.0.0.1", path: "/" }]);
+    await applyBrowserNetworkPolicy(context, { homeOrigin: `http://127.0.0.1:${ports.httpPort}` });
+
+    const page = await context.newPage();
+    const response = await page.goto(`https://localhost:${ports.httpsPort}/echo-headers`);
+    const echoed = (await response!.json()) as { headers: Record<string, string> };
+
+    expect(echoed.headers.authorization).toBeUndefined();
+    expect(echoed.headers.cookie).toBeUndefined();
+    await context.close();
+  }, 30_000);
+
   it("still attaches the session credential on a same-origin request (the policy strips cross-origin, not everything)", async () => {
     const context = await browser.newContext();
     await context.setExtraHTTPHeaders({ Authorization: "Bearer userA-token" });

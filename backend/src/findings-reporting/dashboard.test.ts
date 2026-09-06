@@ -64,7 +64,17 @@ describe("getDashboardData (Section 15.3)", () => {
       ],
       "STATIC",
     );
+    recordDiscoveredEndpoints(
+      db,
+      scanRunId,
+      [
+        { url: "http://127.0.0.1/app/projects", method: "GET", isPage: true },
+        { url: "http://127.0.0.1/app/projects/1", method: "GET" },
+      ],
+      "BROWSER",
+    );
     registerDiscoveredOperation(db, scanRunId, { method: "PATCH", url: "http://127.0.0.1/api/projects/1", source: "OPENAPI", confidence: "HIGH" });
+    registerDiscoveredOperation(db, scanRunId, { method: "GET", url: "http://127.0.0.1/api/my-projects", source: "BROWSER_RUNTIME", confidence: "HIGH" });
     registerDiscoveredOperation(db, scanRunId, { method: "POST", url: "http://127.0.0.1/api/settings", source: "BROWSER_DRY_RUN", confidence: "HIGH" });
 
     recordBusinessObject(db, scanRunId, "Project", "URL");
@@ -73,9 +83,13 @@ describe("getDashboardData (Section 15.3)", () => {
 
     insertCandidateRow(db, scanRunId, "XSS", "TESTABLE");
     insertCandidateRow(db, scanRunId, "XSS", "TESTABLE");
-    db.prepare("INSERT INTO browser_actions (scan_run_id, page_url, label, classification) VALUES (?, 'http://127.0.0.1/app/settings', 'Save', 'SAFE_MUTATION')").run(
+    db.prepare("INSERT INTO browser_actions (scan_run_id, page_url, label, classification, status) VALUES (?, 'http://127.0.0.1/app/settings', 'Save', 'SAFE_MUTATION', 'EXECUTED')").run(
       scanRunId,
     );
+    db.prepare("INSERT INTO browser_actions (scan_run_id, page_url, label, classification, status) VALUES (?, 'http://127.0.0.1/app/settings', 'Delete Account', 'DESTRUCTIVE', 'BLOCKED')").run(
+      scanRunId,
+    );
+    db.prepare("INSERT INTO candidates (scan_run_id, scanner, eligibility_state, browser_testability) VALUES (?, 'XSS', 'INCONCLUSIVE', 'BROWSER_INCONCLUSIVE')").run(scanRunId);
 
     recordWebhookOperation(db, {
       scanRunId,
@@ -110,20 +124,30 @@ describe("getDashboardData (Section 15.3)", () => {
     expect(dashboard.target).toEqual({ id: 1, name: "Fixture App", hostname: "127.0.0.1" });
     expect(dashboard.scanRun.state).toBe("COMPLETED");
     expect(dashboard.scanRun.hadRestoreIncident).toBe(false);
-    expect(dashboard.discoveryCounts.pages).toBe(1);
+    expect(dashboard.discoveryCounts.pages).toBe(2);
     expect(dashboard.discoveryCounts.jsonEndpoints).toBe(1);
-    expect(dashboard.discoveryCounts.operations).toBe(2);
+    expect(dashboard.discoveryCounts.operations).toBe(3);
     expect(dashboard.discoveryCounts.businessObjects).toBe(2);
     expect(dashboard.discoveryCounts.businessStates).toBe(1);
     expect(dashboard.findingsBySeverity).toEqual({ HIGH: 1, MEDIUM: 1 });
-    expect(dashboard.technicalCoverage).toEqual([{ scanner: "XSS", discovered: 2, tested: 2, passiveOnly: 0, skippedByReason: {}, inconclusive: 0 }]);
-    expect(dashboard.browserCoverage).toEqual({ actionsDiscovered: 1, actionsByClassification: { SAFE_MUTATION: 1 }, dryRunOperationsDiscovered: 1 });
+    expect(dashboard.technicalCoverage).toEqual([{ scanner: "XSS", discovered: 3, tested: 2, passiveOnly: 0, skippedByReason: {}, inconclusive: 1 }]);
+    expect(dashboard.browserCoverage).toEqual({
+      pagesVisited: 1,
+      routesDiscovered: 2,
+      actionsDiscovered: 2,
+      actionsByClassification: { SAFE_MUTATION: 1, DESTRUCTIVE: 1 },
+      operationsDiscovered: 2,
+      safeActionsTested: 1,
+      sensitiveActionsBlocked: 1,
+      inconclusiveRuntimeTests: 1,
+      dryRunOperationsDiscovered: 1,
+    });
     expect(dashboard.businessLogicCoverage.byProfile.map((p) => p.profileName)).toEqual(["contest", "generic"]);
     expect(dashboard.environmentClassification).toBe("LOCAL_FIXTURE");
     expect(dashboard.mutationScopeInEffect).toEqual([{ targetId: 1, objectType: "project", resourceId: "1" }]);
     expect(dashboard.configuredBusinessExpectations).toHaveLength(1);
     expect(dashboard.externalTrustBoundaries).toHaveLength(1);
-    expect(dashboard.safetySkipped).toEqual([]);
+    expect(dashboard.safetySkipped).toEqual([{ eligibilityState: "INCONCLUSIVE", count: 1 }]);
   });
 
   it("shows the full untested/safety-skipped breakdown distinctly, alongside a 0-findings result", () => {

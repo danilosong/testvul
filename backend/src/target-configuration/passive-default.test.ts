@@ -33,6 +33,7 @@ describe("Section 16.5 — an audit created without specifying a mode defaults t
     const target = getTarget(db, targetId);
     expect(target?.defaultScanMode).toBe("PASSIVE");
     expect(target?.rateLimitRps).toBe(2);
+    expect(target?.scope).toEqual(["example.com"]);
   });
 
   it("a scan run created from that target performs no mutating requests across API, browser, or business-logic test types", async () => {

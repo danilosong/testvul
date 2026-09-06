@@ -155,7 +155,9 @@ describe("runMutationTestCycle", () => {
     expect(requestSent).toBe(false);
   });
 
-  it("refuses a candidate with no known restore strategy (no eligible write operation) rather than mutating to find out", async () => {
+  it.each(["API", "BROWSER", "BUSINESS_LOGIC"] as const)(
+    "refuses a %s candidate with no known restore strategy rather than mutating to find out",
+    async (initiator) => {
     const { db, scanRunId } = freshScanRun();
     let requestSent = false;
     const requester: RestoreRequester = {
@@ -174,14 +176,15 @@ describe("runMutationTestCycle", () => {
         resourceUrl: RESOURCE_URL,
         fieldPath: "notes",
         testValue: "x",
-        initiator: "API",
-        holder: "API:XSS_SCANNER",
+        initiator,
+        holder: `${initiator}:TEST`,
         // No discovered PATCH operation for this URL — reversibility cannot be proven.
         operations: [{ method: "GET", url: RESOURCE_URL, source: "OPENAPI", confidence: "HIGH" }],
       }),
     ).rejects.toThrow(ReversibilityNotProvenError);
     expect(requestSent).toBe(false);
-  });
+    },
+  );
 
   it("proceeds normally when all six reversibility preconditions are present", async () => {
     const { db, scanRunId } = freshScanRun();
@@ -204,7 +207,9 @@ describe("runMutationTestCycle", () => {
     expect(result.outcome).toBe("RESTORE_OK");
   });
 
-  it("blocks a mutation attempt against an UNKNOWN_RESOURCE (no Mutation Scope declared for the target at all)", async () => {
+  it.each(["API", "BROWSER", "BUSINESS_LOGIC"] as const)(
+    "blocks a %s mutation attempt against an UNKNOWN_RESOURCE (no Mutation Scope declared for the target at all)",
+    async (initiator) => {
     const { db, scanRunId } = freshScanRun();
     const unscopedResource: ResourceKey = { targetId: 999, origin: "https://example.com", objectType: "project", resourceId: "1" };
     let requestSent = false;
@@ -224,15 +229,18 @@ describe("runMutationTestCycle", () => {
         resourceUrl: RESOURCE_URL,
         fieldPath: "notes",
         testValue: "x",
-        initiator: "API",
-        holder: "API:XSS_SCANNER",
+        initiator,
+        holder: `${initiator}:TEST`,
         operations: KNOWN_OPERATIONS,
       }),
     ).rejects.toThrow(MutationScopeViolationError);
     expect(requestSent).toBe(false);
-  });
+    },
+  );
 
-  it("blocks a mutation attempt against a NON_TEST_RESOURCE (Mutation Scope is configured for the target but excludes this resource)", async () => {
+  it.each(["API", "BROWSER", "BUSINESS_LOGIC"] as const)(
+    "blocks a %s mutation attempt against a NON_TEST_RESOURCE (Mutation Scope is configured for the target but excludes this resource)",
+    async (initiator) => {
     const { db, scanRunId } = freshScanRun();
     const nonTestResource: ResourceKey = { targetId: 1, origin: "https://example.com", objectType: "project", resourceId: "999" };
     let requestSent = false;
@@ -252,13 +260,14 @@ describe("runMutationTestCycle", () => {
         resourceUrl: RESOURCE_URL,
         fieldPath: "notes",
         testValue: "x",
-        initiator: "API",
-        holder: "API:XSS_SCANNER",
+        initiator,
+        holder: `${initiator}:TEST`,
         operations: KNOWN_OPERATIONS,
       }),
     ).rejects.toThrow(MutationScopeViolationError);
     expect(requestSent).toBe(false);
-  });
+    },
+  );
 
   it("allows mutating a NON_TEST_RESOURCE only when a distinct, explicit advanced override is confirmed", async () => {
     const { db, scanRunId } = freshScanRun();

@@ -64,6 +64,17 @@ function createMainRouter(state, ctx) {
     const pathname = url.pathname;
     const method = req.method;
 
+    if (pathname === "/echo-headers") {
+      res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
+      res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", req.headers["access-control-request-headers"] || "authorization, content-type");
+      if (method === "OPTIONS") {
+        res.writeHead(204);
+        return res.end();
+      }
+      return sendJson(res, 200, { headers: req.headers });
+    }
+
     if (pathname.startsWith("/api/contest/") || pathname.startsWith("/api/vuln-contest/")) {
       const handled = await contestRouter(req, res, url, method);
       if (handled) return;

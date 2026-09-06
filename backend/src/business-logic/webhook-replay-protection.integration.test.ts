@@ -25,6 +25,38 @@ function origin(): string {
 }
 
 describe("Section 13.26 — Webhook Replay Protection Analysis against the real fixture payment webhook (1.6)", () => {
+  it("flags Missing Idempotency Protection when the vulnerable callback grants its effect again on replay", async () => {
+    const reservationResponse = await httpClient.request(`${origin()}/api/contest/campaigns/1/reservations`, {
+      method: "POST",
+      headers: { Authorization: "Bearer userA-token" },
+    });
+    const reservation = JSON.parse(reservationResponse.body) as { id: string };
+    const purchaseResponse = await httpClient.request(`${origin()}/api/contest/reservations/${reservation.id}/purchase`, {
+      method: "POST",
+      headers: { Authorization: "Bearer userA-token" },
+    });
+    const purchase = JSON.parse(purchaseResponse.body) as { ticket: { id: string } };
+
+    const result = await testWebhookReplayProtection({
+      targetEnvironment: "LOCAL_FIXTURE",
+      isTestResource: true,
+      operation: "POST /api/vuln-contest/payments/webhook",
+      performCallback: async () => {
+        const response = await httpClient.request(`${origin()}/api/vuln-contest/payments/webhook`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ticketId: purchase.ticket.id }),
+        });
+        const body = JSON.parse(response.body) as { status: string; webhookGrantCount: number };
+        return { status: body.status, webhookGrantCount: body.webhookGrantCount };
+      },
+    });
+
+    expect(result.status).toBe("TESTED");
+    if (result.status !== "TESTED" || result.replay.status !== "TESTED") throw new Error("unreachable");
+    expect(result.replay.comparison).toEqual({ consistent: false, finding: true });
+  });
+
   it("replays a valid callback and confirms the ticket's PAID state transition is not duplicated — correctly idempotent", async () => {
     const reserveResponse = await httpClient.request(`${origin()}/api/contest/campaigns/1/reservations`, {
       method: "POST",

@@ -37,6 +37,14 @@ async function setQuantity(endpoint: string, quantity: number): Promise<{ status
 }
 
 describe("Section 13.16 — Business Limit representation and enforcement testing against the fixture app's UI-only-limited action (1.5)", () => {
+  it("keeps the administrative ranking endpoint inaccessible to a normal-privilege user", async () => {
+    const response = await httpClient.request(`${origin()}/api/contest/campaigns/1/ranking`, {
+      headers: { Authorization: "Bearer userA-token" },
+    });
+
+    expect(response.status).toBe(403);
+  });
+
   it("confirms a Server-Side Business Limit Not Enforced finding: the UI disables past the client limit, but the backend accepts an over-limit request", async () => {
     // Legitimately reach the client-side limit (10) first, so the UI's own
     // increase button renders disabled on page load.

@@ -300,6 +300,7 @@ function createContestRouter(state) {
       const ticket = contest.tickets[body.ticketId];
       if (!ticket) return sendJson(res, 404, { error: "NOT_FOUND" }), true;
       ticket.status = "PAID";
+      ticket.webhookGrantCount = (ticket.webhookGrantCount || 0) + 1;
       return sendJson(res, 200, ticket), true;
     }
 

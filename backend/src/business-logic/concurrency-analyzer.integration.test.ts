@@ -38,6 +38,23 @@ async function reserveVulnContestTicket(authHeader: string): Promise<{ number: n
   return { number };
 }
 
+async function purchaseProtectedContestTicket(authHeader: string): Promise<{ number: number }> {
+  const reservationResponse = await httpClient.request(`${origin()}/api/contest/campaigns/1/reservations`, {
+    method: "POST",
+    headers: { Authorization: authHeader, "Content-Type": "application/json" },
+    body: "{}",
+  });
+  expect(reservationResponse.status).toBe(201);
+  const reservation = JSON.parse(reservationResponse.body) as { id: string };
+  const purchaseResponse = await httpClient.request(`${origin()}/api/contest/reservations/${reservation.id}/purchase`, {
+    method: "POST",
+    headers: { Authorization: authHeader },
+  });
+  expect(purchaseResponse.status).toBe(201);
+  const purchase = JSON.parse(purchaseResponse.body) as { ticket: { number: number } };
+  return { number: purchase.ticket.number };
+}
+
 describe("Section 13.14 — Concurrency/Race-Condition testing against the fixture app's concurrent-reservation bug (1.6)", () => {
   it("detects two simultaneous reservations receiving the same ticket number using only the default low concurrency", async () => {
     const result = await testConcurrency({
@@ -53,6 +70,21 @@ describe("Section 13.14 — Concurrency/Race-Condition testing against the fixtu
     if (result.status !== "TESTED") throw new Error("unreachable");
     expect(result.result.concurrency).toBe(2);
     expect(result.result.duplicateResourceDetected).toBe(true);
+  });
+
+  it("produces no race finding when the protected flow assigns distinct ticket numbers server-side", async () => {
+    const result = await testConcurrency({
+      objectType: "Ticket",
+      targetEnvironment: "LOCAL_FIXTURE",
+      scopeClassification: "UNKNOWN_RESOURCE",
+      confirmedMutationAuthorization: false,
+      hasKnownCleanupStrategy: false,
+      performConcurrentAttempt: () => purchaseProtectedContestTicket("Bearer userA-token"),
+    });
+
+    expect(result.status).toBe("TESTED");
+    if (result.status !== "TESTED") throw new Error("unreachable");
+    expect(result.result.duplicateResourceDetected).toBe(false);
   });
 
   it("never executes a concurrent mutation against a non-fixture, non-TEST_RESOURCE candidate — classifies NOT_TESTED", async () => {

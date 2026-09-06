@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { composeProfiles } from "./profile-plugin";
-import { GENERIC_PROFILE, type GenericProfileContext } from "./generic";
+import { GENERIC_ANALYSIS_TYPES, GENERIC_PROFILE, type GenericProfileContext } from "./generic";
 import { createContestProfile } from "./contest";
+import { recognizeObjectTypesFromUrl } from "../business-object-discovery";
 
 const CONTEXT: GenericProfileContext = { discoveredObjectTypes: ["Campaign", "Ticket", "Project"] };
 
@@ -24,5 +25,15 @@ describe("composeProfiles — additive-only Profile Plugin composition (design.m
   it("a disabled profile contributes nothing at all", () => {
     const result = composeProfiles([createContestProfile(false)], CONTEXT);
     expect(result).toEqual({ candidates: [], invariants: [] });
+  });
+
+  it("runs every standard generic analysis for a non-contest Project area without any domain profile enabled", () => {
+    const discoveredObjectTypes = recognizeObjectTypesFromUrl("https://fixture.example/api/projects/1");
+    const result = composeProfiles([GENERIC_PROFILE], { discoveredObjectTypes });
+
+    expect(result.candidates).toEqual(
+      GENERIC_ANALYSIS_TYPES.map((analysisType) => ({ source: "generic", objectType: "Project", analysisType })),
+    );
+    expect(result.invariants).toEqual([]);
   });
 });
