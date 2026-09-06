@@ -7,6 +7,12 @@ import { lookup as defaultDnsLookup } from "node:dns/promises";
 import { validateHop, type DnsLookupFn } from "../scope/validated-request";
 import type { ScopeValidator } from "../scope";
 
+export interface ProxyRequestLogEntry {
+  hostname: string;
+  kind: "CONNECT" | "HTTP";
+  allowed: boolean;
+}
+
 export interface ControlledEgressProxyOptions {
   scopeValidator: ScopeValidator;
   allowPrivateNetworks?: boolean;
@@ -14,6 +20,8 @@ export interface ControlledEgressProxyOptions {
   dnsLookup?: DnsLookupFn;
   /** Defaults to `127.0.0.1` (loopback-only). A container deployment (e.g. `deploy/browser-egress-strict/`) binds `0.0.0.0` so a sibling browser-worker container can reach it. */
   host?: string;
+  /** Fired for every CONNECT/HTTP request the proxy is asked to relay, allowed or not — lets a test (e.g. Section 12.4's network-surface-reduction checks) observe exactly what a browser configured to use this proxy actually attempted. */
+  onRequest?: (entry: ProxyRequestLogEntry) => void;
 }
 
 export interface ControlledEgressProxy {
@@ -66,15 +74,17 @@ export async function startControlledEgressProxy(options: ControlledEgressProxyO
   const allowPrivateNetworks = !!options.allowPrivateNetworks;
   const scopeValidator = options.scopeValidator;
 
+  const onRequest = options.onRequest ?? (() => {});
+
   const server = http.createServer((req, res) => {
-    handlePlainHttpProxyRequest(req, res, scopeValidator, allowPrivateNetworks, dnsLookup).catch(() => {
+    handlePlainHttpProxyRequest(req, res, scopeValidator, allowPrivateNetworks, dnsLookup, onRequest).catch(() => {
       if (!res.headersSent) res.writeHead(502);
       res.end();
     });
   });
 
   server.on("connect", (req, clientSocket, head) => {
-    handleConnect(req, clientSocket, head, scopeValidator, allowPrivateNetworks, dnsLookup).catch(() => {
+    handleConnect(req, clientSocket, head, scopeValidator, allowPrivateNetworks, dnsLookup, onRequest).catch(() => {
       clientSocket.destroy();
     });
   });
@@ -100,22 +110,24 @@ async function handleConnect(
   scopeValidator: ScopeValidator,
   allowPrivateNetworks: boolean,
   dnsLookup: DnsLookupFn,
+  onRequest: (entry: ProxyRequestLogEntry) => void,
 ): Promise<void> {
   const target = req.url ? parseConnectTarget(req.url) : null;
   if (!target) {
     clientSocket.end("HTTP/1.1 400 Bad Request\r\n\r\n");
     return;
   }
-
   // CONNECT tunnels have no scheme of their own — represented as an
   // https:// URL purely so the shared canonicalize/scope/scheme/DNS/IP
   // pipeline (which expects a URL) can run against it unchanged.
   const pseudoUrl = `https://${target.hostname}:${target.port}/`;
   const validation = await validateHop(pseudoUrl, scopeValidator, allowPrivateNetworks, dnsLookup);
   if (!validation.ok) {
+    onRequest({ hostname: target.hostname, kind: "CONNECT", allowed: false });
     clientSocket.end("HTTP/1.1 403 Forbidden\r\n\r\n");
     return;
   }
+  onRequest({ hostname: target.hostname, kind: "CONNECT", allowed: true });
 
   // Connects to the exact address `validateHop` just validated — never a
   // fresh resolution of the hostname — which is what closes the
@@ -136,6 +148,7 @@ async function handlePlainHttpProxyRequest(
   scopeValidator: ScopeValidator,
   allowPrivateNetworks: boolean,
   dnsLookup: DnsLookupFn,
+  onRequest: (entry: ProxyRequestLogEntry) => void,
 ): Promise<void> {
   const targetUrl = req.url ?? "";
   if (!/^https?:\/\//i.test(targetUrl)) {
@@ -143,13 +156,16 @@ async function handlePlainHttpProxyRequest(
     res.end();
     return;
   }
+  const targetHostname = new URL(targetUrl).hostname;
 
   const validation = await validateHop(targetUrl, scopeValidator, allowPrivateNetworks, dnsLookup);
   if (!validation.ok) {
+    onRequest({ hostname: targetHostname, kind: "HTTP", allowed: false });
     res.writeHead(403);
     res.end();
     return;
   }
+  onRequest({ hostname: targetHostname, kind: "HTTP", allowed: true });
 
   const { canonical, resolved } = validation;
   const transport = canonical.protocol === "https:" ? https : http;
