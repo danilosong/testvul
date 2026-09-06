@@ -191,6 +191,29 @@ test("GTM strict-format field: a correctly-formatted value is accepted", async (
   assert.equal(res.status, 200);
 });
 
+test("price field: the owner-supplied value is stored verbatim instead of being recalculated server-side", async () => {
+  const res = await jsonRequest({
+    port: ports.httpPort,
+    path: "/api/projects/1",
+    method: "PATCH",
+    headers: AUTH_A,
+    body: { price: 1 },
+  });
+  assert.equal(res.status, 200);
+  assert.equal(JSON.parse(res.body).price, 1);
+});
+
+test("price field: a non-owner is rejected with 403", async () => {
+  const res = await jsonRequest({
+    port: ports.httpPort,
+    path: "/api/projects/1",
+    method: "PATCH",
+    headers: AUTH_B,
+    body: { price: 1 },
+  });
+  assert.equal(res.status, 403);
+});
+
 test("IDOR-vulnerable endpoint returns another user's project", async () => {
   const res = await request({ port: ports.httpPort, path: "/api/projects/2", headers: AUTH_A });
   assert.equal(res.status, 200);
@@ -314,4 +337,42 @@ test("plain resource carries no concurrency signal and always accepts the write"
     body: { value: "overwritten-with-no-precondition" },
   });
   assert.equal(patch.status, 200);
+});
+
+test("vulnerable reward claim: replaying the call credits the balance again", async () => {
+  const first = await jsonRequest({ port: ports.httpPort, path: "/api/rewards/claim", method: "POST", headers: AUTH_A });
+  const replay = await jsonRequest({ port: ports.httpPort, path: "/api/rewards/claim", method: "POST", headers: AUTH_A });
+  assert.equal(first.status, 200);
+  assert.equal(replay.status, 200);
+  assert.equal(JSON.parse(replay.body).balance, JSON.parse(first.body).balance + 100);
+});
+
+test("protected reward claim: replaying the same Idempotency-Key returns the original result without crediting again", async () => {
+  const headers = Object.assign({ "Idempotency-Key": "claim-key-1" }, AUTH_B);
+  const first = await jsonRequest({ port: ports.httpPort, path: "/api/rewards/claim-protected", method: "POST", headers });
+  const replay = await jsonRequest({ port: ports.httpPort, path: "/api/rewards/claim-protected", method: "POST", headers });
+  assert.equal(first.status, 200);
+  assert.equal(replay.status, 200);
+  assert.deepEqual(JSON.parse(replay.body), JSON.parse(first.body));
+});
+
+test("protected reward claim: a different Idempotency-Key is treated as a genuinely new operation", async () => {
+  const first = await jsonRequest({
+    port: ports.httpPort,
+    path: "/api/rewards/claim-protected",
+    method: "POST",
+    headers: Object.assign({ "Idempotency-Key": "claim-key-2" }, AUTH_B),
+  });
+  const second = await jsonRequest({
+    port: ports.httpPort,
+    path: "/api/rewards/claim-protected",
+    method: "POST",
+    headers: Object.assign({ "Idempotency-Key": "claim-key-3" }, AUTH_B),
+  });
+  assert.equal(JSON.parse(second.body).balance, JSON.parse(first.body).balance + 100);
+});
+
+test("protected reward claim: rejects a request with no Idempotency-Key at all", async () => {
+  const res = await jsonRequest({ port: ports.httpPort, path: "/api/rewards/claim-protected", method: "POST", headers: AUTH_A });
+  assert.equal(res.status, 400);
 });

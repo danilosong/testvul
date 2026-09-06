@@ -150,6 +150,35 @@ function createMainRouter(state, ctx) {
       state.settings[user.id].quantity = Number(body.quantity); // no server-side cap: client-limit-only
       return sendJson(res, 200, state.settings[user.id]);
     }
+
+    // ── Section 13.13 (Replay and Idempotency Analysis) fixture ─────────
+
+    if (method === "POST" && pathname === "/api/rewards/claim") {
+      // Vulnerable variant: no Idempotency-Key (or any other) replay
+      // protection at all — every call credits the balance again.
+      const user = authenticate(req, state);
+      if (!user) return sendJson(res, 401, { error: "UNAUTHENTICATED" });
+      const reward = state.rewards[user.id];
+      reward.balance += 100;
+      return sendJson(res, 200, { balance: reward.balance });
+    }
+
+    if (method === "POST" && pathname === "/api/rewards/claim-protected") {
+      // Protected variant: an Idempotency-Key header is required; replaying
+      // the same key returns the original stored result without crediting
+      // the balance again.
+      const user = authenticate(req, state);
+      if (!user) return sendJson(res, 401, { error: "UNAUTHENTICATED" });
+      const idempotencyKey = req.headers["idempotency-key"];
+      if (!idempotencyKey) return sendJson(res, 400, { error: "IDEMPOTENCY_KEY_REQUIRED" });
+      const reward = state.rewards[user.id];
+      const existing = reward.completedIdempotencyKeys[idempotencyKey];
+      if (existing) return sendJson(res, 200, existing);
+      reward.balance += 100;
+      const result = { balance: reward.balance };
+      reward.completedIdempotencyKeys[idempotencyKey] = result;
+      return sendJson(res, 200, result);
+    }
     if (pathname === "/api/settings-enforced" && (method === "GET" || method === "PATCH")) {
       const user = authenticate(req, state);
       if (!user) return sendJson(res, 401, { error: "UNAUTHENTICATED" });
@@ -241,6 +270,13 @@ function createMainRouter(state, ctx) {
           return sendJson(res, 422, { error: "VALIDATION_REJECTED", reason: "strictFormatGtm must match GTM-XXXX0000" });
         }
         project.strictFormatGtm = String(body.strictFormatGtm);
+      }
+      if (Object.prototype.hasOwnProperty.call(body, "price")) {
+        // Section 13.15 (Price/Amount Integrity) fixture field: stored
+        // verbatim from the client instead of being recalculated
+        // server-side — deliberately vulnerable to price tampering.
+        if (!isOwnerOrAdmin(user, project)) return sendJson(res, 403, { error: "FORBIDDEN" });
+        project.price = Number(body.price);
       }
 
       return sendJson(res, 200, project);

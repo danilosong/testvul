@@ -7,6 +7,7 @@ import { buildAttackSurface } from "./discovery/attack-surface";
 import { authProfilesRoutes } from "./auth/auth-profiles-routes";
 import { resourceOwnershipRoutes } from "./ownership/resource-ownership-routes";
 import { authorizationExpectationsRoutes } from "./auth/authorization-expectations-routes";
+import { businessLogicRulesRoutes } from "./business-logic/business-logic-rules-routes";
 
 interface AttackSurfaceRequestBody {
   targetUrl: string;
@@ -26,6 +27,7 @@ export function buildApp(db: Db): FastifyInstance {
   app.register(authProfilesRoutes, { db });
   app.register(resourceOwnershipRoutes, { db });
   app.register(authorizationExpectationsRoutes, { db });
+  app.register(businessLogicRulesRoutes, { db });
 
   app.post<{ Body: AttackSurfaceRequestBody }>("/api/discovery/attack-surface", async (request, reply) => {
     const { targetUrl, scope, allowPrivateNetworks, maxDepth, maxPages } = request.body;

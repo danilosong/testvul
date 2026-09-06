@@ -45,3 +45,11 @@ export function listObservedProperties(db: Db, scanRunId: number, objectType: st
     .all(scanRunId, objectType, propertyOrAction) as unknown as ObservedPropertyRow[];
   return rows.map(rowToObservedProperty);
 }
+
+/** Every observed property for a scan run — the "Observed Behavior" view's data source (Section 13.22). */
+export function listAllObservedPropertiesForScanRun(db: Db, scanRunId: number): ObservedProperty[] {
+  const rows = db
+    .prepare("SELECT * FROM business_observed_properties WHERE scan_run_id = ? ORDER BY object_type, property_or_action")
+    .all(scanRunId) as unknown as ObservedPropertyRow[];
+  return rows.map(rowToObservedProperty);
+}

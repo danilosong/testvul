@@ -252,3 +252,56 @@ test("vulnerable: the payment webhook accepts an unauthenticated, unsigned callb
   assert.equal(res.status, 200);
   assert.equal(JSON.parse(res.body).status, "PAID");
 });
+
+test("vulnerable: a ticket can be read by id with no ownership check at all", async () => {
+  const reserveRes = await jsonRequest({
+    path: "/api/vuln-contest/campaigns/2/reservations",
+    method: "POST",
+    headers: AUTH_B,
+    body: { ticketNumber: 99 },
+  });
+  const ticket = JSON.parse(reserveRes.body);
+  assert.equal(ticket.ownerId, "userB");
+
+  const res = await request({ path: `/api/vuln-contest/tickets/${ticket.id}`, headers: AUTH_A });
+  assert.equal(res.status, 200);
+  assert.equal(JSON.parse(res.body).ownerId, "userB");
+});
+
+test("vulnerable: a ticket's number can still be changed after it is already PAID", async () => {
+  const reserveRes = await jsonRequest({
+    path: "/api/vuln-contest/campaigns/2/reservations",
+    method: "POST",
+    headers: AUTH_A,
+    body: { ticketNumber: 500 },
+  });
+  const ticket = JSON.parse(reserveRes.body);
+
+  const payRes = await jsonRequest({
+    path: "/api/vuln-contest/payments/webhook",
+    method: "POST",
+    body: { ticketId: ticket.id },
+  });
+  assert.equal(JSON.parse(payRes.body).status, "PAID");
+
+  const patchRes = await jsonRequest({
+    path: `/api/vuln-contest/tickets/${ticket.id}`,
+    method: "PATCH",
+    headers: AUTH_A,
+    body: { number: 99999 },
+  });
+  assert.equal(patchRes.status, 200);
+  assert.equal(JSON.parse(patchRes.body).number, 99999);
+});
+
+test("vulnerable: reading a ticket by id still requires authentication", async () => {
+  const reserveRes = await jsonRequest({
+    path: "/api/vuln-contest/campaigns/2/reservations",
+    method: "POST",
+    headers: AUTH_B,
+    body: { ticketNumber: 100 },
+  });
+  const ticket = JSON.parse(reserveRes.body);
+  const res = await request({ path: `/api/vuln-contest/tickets/${ticket.id}` });
+  assert.equal(res.status, 401);
+});

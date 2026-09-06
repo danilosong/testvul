@@ -62,3 +62,32 @@ export function getBusinessExpectations(db: Db, targetId: number, objectType: st
     .all(targetId, objectType, propertyOrAction) as unknown as BusinessExpectationRow[];
   return rows.map(rowToExpectation);
 }
+
+/** Every configured expectation for a target, across all object types — the "Configured Rules" view's data source (Section 13.22). */
+export function listBusinessExpectationsForTarget(db: Db, targetId: number): BusinessExpectation[] {
+  const rows = db.prepare("SELECT * FROM business_expectations WHERE target_id = ? ORDER BY object_type, property_or_action").all(targetId) as unknown as BusinessExpectationRow[];
+  return rows.map(rowToExpectation);
+}
+
+export type BusinessExpectationUpdateInput = Partial<Omit<BusinessExpectationInput, "targetId" | "objectType" | "propertyOrAction">>;
+
+export function updateBusinessExpectation(db: Db, id: number, input: BusinessExpectationUpdateInput): void {
+  if (input.lifecycleCondition !== undefined && !isValidCondition(input.lifecycleCondition)) {
+    throw new InvalidLifecycleConditionError();
+  }
+  const existing = db.prepare("SELECT * FROM business_expectations WHERE id = ?").get(id) as unknown as BusinessExpectationRow | undefined;
+  if (!existing) return;
+  db.prepare(
+    `UPDATE business_expectations SET expectation_type = ?, expected_value = ?, lifecycle_condition_json = ?, severity = ?, updated_at = datetime('now') WHERE id = ?`,
+  ).run(
+    input.expectationType ?? existing.expectation_type,
+    input.expectedValue ?? existing.expected_value,
+    input.lifecycleCondition !== undefined ? JSON.stringify(input.lifecycleCondition) : existing.lifecycle_condition_json,
+    input.severity ?? existing.severity,
+    id,
+  );
+}
+
+export function deleteBusinessExpectation(db: Db, id: number): void {
+  db.prepare("DELETE FROM business_expectations WHERE id = ?").run(id);
+}

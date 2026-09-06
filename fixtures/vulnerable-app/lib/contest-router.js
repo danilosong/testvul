@@ -243,6 +243,36 @@ function createContestRouter(state) {
       return sendJson(res, 201, ticket), true;
     }
 
+    m = pathname.match(/^\/api\/vuln-contest\/tickets\/([^/]+)$/);
+    if (m && method === "GET") {
+      // No ownership check at all — any authenticated caller can read any
+      // ticket by its (predictable, sequential) id. This mirrors the
+      // protected /api/contest/tickets/:id above, which correctly requires
+      // isOwnerOrAdmin; this variant demonstrates what Section 13.12's
+      // Predictability Analysis exists to catch: a sequential identifier
+      // combined with a missing ownership check enabling real unauthorized
+      // access to another user's resource.
+      const user = authenticate(req, state);
+      if (!user) return sendJson(res, 401, { error: "UNAUTHENTICATED" }), true;
+      const ticket = contest.tickets[m[1]];
+      if (!ticket) return sendJson(res, 404, { error: "NOT_FOUND" }), true;
+      return sendJson(res, 200, ticket), true;
+    }
+    if (m && method === "PATCH") {
+      // No ownership check and — the bug — no PAID-immutability check
+      // either, unlike the protected /api/contest/tickets/:id above: a
+      // ticket's number can still be changed after it's already PAID.
+      // This is what Section 13.17's Business Invariant Engine exists to
+      // catch ("Ticket.number is immutable after PAID").
+      const user = authenticate(req, state);
+      if (!user) return sendJson(res, 401, { error: "UNAUTHENTICATED" }), true;
+      const ticket = contest.tickets[m[1]];
+      if (!ticket) return sendJson(res, 404, { error: "NOT_FOUND" }), true;
+      const body = JSON.parse((await readBody(req)).toString("utf8") || "{}");
+      if (Object.prototype.hasOwnProperty.call(body, "number")) ticket.number = Number(body.number);
+      return sendJson(res, 200, ticket), true;
+    }
+
     m = pathname.match(/^\/api\/vuln-contest\/tickets\/([^/]+)\/cancel$/);
     if (m && method === "POST") {
       const user = authenticate(req, state);

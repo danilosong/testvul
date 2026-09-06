@@ -19,6 +19,7 @@ function createState() {
         analyticsGtm: "GTM-REAL0001",
         protectedGtm: "GTM-REAL0002",
         strictFormatGtm: "GTM-REAL0003",
+        price: 4999,
       },
       2: {
         id: "2",
@@ -31,6 +32,7 @@ function createState() {
         analyticsGtm: "GTM-REAL0004",
         protectedGtm: "GTM-REAL0005",
         strictFormatGtm: "GTM-REAL0006",
+        price: 2999,
       },
     },
     etagResource: { id: "etag-1", value: "original-value" },
@@ -71,6 +73,14 @@ function createState() {
       nextTicketId: 1,
       nextPurchaseId: 1,
       webhookSecret: "fixture-webhook-secret",
+    },
+    rewards: {
+      // Section 13.13 (Replay and Idempotency Analysis) fixture: each
+      // user's reward balance, plus the set of Idempotency-Keys the
+      // protected claim endpoint has already completed.
+      userA: { balance: 0, completedIdempotencyKeys: {} },
+      userB: { balance: 0, completedIdempotencyKeys: {} },
+      admin: { balance: 0, completedIdempotencyKeys: {} },
     },
   };
 }

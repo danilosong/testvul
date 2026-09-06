@@ -39,6 +39,7 @@ const EXPECTED_TABLES = [
   "browser_evidence",
   "business_test_plans",
   "audit_events",
+  "target_business_profiles",
 ];
 
 let dir: string;
@@ -51,14 +52,14 @@ afterEach(() => {
 });
 
 describe("runMigrations", () => {
-  it("applies 0001_initial.sql cleanly against a fresh file", () => {
+  it("applies every migration file cleanly, in order, against a fresh file", () => {
     dir = mkdtempSync(join(tmpdir(), "sca-migrator-"));
     dbPath = join(dir, "test.db");
     db = openDb(dbPath);
 
     const result = runMigrations(db, MIGRATIONS_DIR);
 
-    expect(result.applied).toEqual(["0001_initial.sql"]);
+    expect(result.applied).toEqual(["0001_initial.sql", "0002_target_business_profiles.sql"]);
   });
 
   it("creates every table from design.md Decision 5 with no undefined JSON-blob state", () => {
