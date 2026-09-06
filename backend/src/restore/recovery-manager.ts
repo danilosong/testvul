@@ -6,6 +6,7 @@ import { recordAuditEvent } from "../mutation/audit-events-repository";
 import { getLatestResourceBackup } from "../backup/resource-backups-repository";
 import { hashContent } from "../backup/backup-engine";
 import type { RestoreRequester } from "./restore-engine";
+import { markRestoreIncident } from "../mutation/restore-incident";
 
 const INTERRUPTED_STATES: readonly JournalState[] = ["MUTATION_APPLIED", "RESTORE_PENDING"];
 
@@ -92,6 +93,7 @@ export async function recoverInterruptedResource(
     recordJournalState(db, scanRunId, entry.resourceKey, entry.initiator, "RESTORE_CONFLICT", {
       requiresManualIntervention: true,
     });
+    markRestoreIncident(db, scanRunId);
     recordAuditEvent(db, scanRunId, "RECOVERY_NO_BACKUP_FOUND", { resourceKey: entry.resourceKey });
     return { resourceKey: entry.resourceKey, outcome: "REQUIRES_MANUAL_INTERVENTION" };
   }
@@ -108,6 +110,7 @@ export async function recoverInterruptedResource(
   recordJournalState(db, scanRunId, entry.resourceKey, entry.initiator, "RESTORE_CONFLICT", {
     requiresManualIntervention: true,
   });
+  markRestoreIncident(db, scanRunId);
   recordAuditEvent(db, scanRunId, "RECOVERY_REQUIRES_MANUAL_INTERVENTION", { resourceKey: entry.resourceKey });
   return { resourceKey: entry.resourceKey, outcome: "REQUIRES_MANUAL_INTERVENTION" };
 }

@@ -3,9 +3,14 @@ import type { Db } from "../db/connection";
 /**
  * Business Logic Coverage aggregation (Section 13.28), exposed to
  * `findings-reporting`. Broken down per active profile by cross-
- * referencing each row's `objectType` against `business_objects.source`
- * (the same `source` a Profile Plugin's own contribution already tags
- * every candidate with — Section 13.1/13.21) for the same scan run.
+ * referencing each row's `objectType` against which profile actually
+ * claimed that object type — from composing the real Profile Plugins'
+ * `contribute()` output (Section 13.1/13.21's `composeProfiles`), never
+ * from `business_objects.source`. That column is a *discovery-provenance*
+ * label (OPENAPI/JSON_FIELD/BROWSER_RUNTIME/FORM/URL/ENDPOINT_NAME —
+ * Section 13.4's `recordBusinessObject`), unrelated to which profile
+ * recognizes the object type; conflating the two would silently break
+ * profile attribution the moment real discovery data flows in.
  * `findings` carries no per-object-type attribution in the schema, so it
  * is reported only as a scan-wide total, not broken down by profile.
  */
@@ -31,10 +36,28 @@ export interface BusinessLogicCoverageReport {
   totalFindings: number;
 }
 
+export interface ProfileContributedCandidate {
+  source: string;
+  objectType: string;
+}
+
+/** Builds the profile -> claimed-object-types map straight from a composed Profile Plugin contribution's own candidates (design.md Decision 36) — the single source of truth for "which profile recognizes this object type." */
+export function buildProfileObjectTypeMap(candidates: readonly ProfileContributedCandidate[]): Map<string, string[]> {
+  const map = new Map<string, string[]>();
+  for (const candidate of candidates) {
+    const list = map.get(candidate.source) ?? [];
+    if (!list.includes(candidate.objectType)) list.push(candidate.objectType);
+    map.set(candidate.source, list);
+  }
+  return map;
+}
+
 export interface ComputeBusinessLogicCoverageParams {
   db: Db;
   scanRunId: number;
   targetId: number;
+  /** From `buildProfileObjectTypeMap(composeProfiles(activeProfiles, context).candidates)` — never derived from `business_objects.source`. */
+  profileObjectTypes: ReadonlyMap<string, readonly string[]>;
 }
 
 function countWhereObjectTypeIn(db: Db, table: string, scopeColumn: "scan_run_id" | "target_id", scopeId: number, objectTypes: readonly string[]): number {
@@ -67,27 +90,16 @@ function countTestPlansByProofLevelBucket(
 }
 
 export function computeBusinessLogicCoverage(params: ComputeBusinessLogicCoverageParams): BusinessLogicCoverageReport {
-  const { db, scanRunId, targetId } = params;
+  const { db, scanRunId, targetId, profileObjectTypes } = params;
 
-  const objectRows = db.prepare("SELECT object_type, source FROM business_objects WHERE scan_run_id = ?").all(scanRunId) as unknown as {
-    object_type: string;
-    source: string;
-  }[];
-
-  const profileNames = [...new Set(objectRows.map((row) => row.source))].sort();
-  const objectTypesByProfile = new Map<string, string[]>();
-  for (const row of objectRows) {
-    const list = objectTypesByProfile.get(row.source) ?? [];
-    if (!list.includes(row.object_type)) list.push(row.object_type);
-    objectTypesByProfile.set(row.source, list);
-  }
+  const profileNames = [...profileObjectTypes.keys()].sort();
 
   const byProfile: BusinessLogicCoverageByProfile[] = profileNames.map((profileName) => {
-    const objectTypes = objectTypesByProfile.get(profileName) ?? [];
+    const objectTypes = profileObjectTypes.get(profileName) ?? [];
     return {
       profileName,
       coverage: {
-        objectsDiscovered: objectRows.filter((row) => row.source === profileName).length,
+        objectsDiscovered: countWhereObjectTypeIn(db, "business_objects", "scan_run_id", scanRunId, objectTypes),
         statesDiscovered: countWhereObjectTypeIn(db, "business_states", "scan_run_id", scanRunId, objectTypes),
         operationsDiscovered: countWhereObjectTypeIn(db, "business_operations", "scan_run_id", scanRunId, objectTypes),
         invariantsConfigured: countWhereObjectTypeIn(db, "business_invariants", "target_id", targetId, objectTypes),

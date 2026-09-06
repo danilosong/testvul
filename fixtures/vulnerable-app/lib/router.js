@@ -81,6 +81,19 @@ function createMainRouter(state, ctx) {
     if (method === "GET" && pathname === "/projects") {
       return sendText(res, 200, "<html><body>Projects landing page</body></html>", "text/html");
     }
+    if (method === "GET" && pathname === "/host-discovery-fixture") {
+      // Section 14.4 fixture: a page linking to both an in-scope subdomain
+      // and an out-of-scope host, both fake/never-connected-to — scope
+      // routing is decided from the hostname string alone, before any
+      // connection is attempted. Kept off the shared "/" page so it never
+      // interferes with an ordinary crawl starting there.
+      return sendText(
+        res,
+        200,
+        '<html><body><a href="http://sub.in-scope.example.test/">In-scope subdomain</a><a href="http://out-of-scope.example.test/">Out-of-scope host</a></body></html>',
+        "text/html",
+      );
+    }
 
     // ── Browser-driven SPA fixture (Section 1.5) ────────────────────────
 

@@ -63,6 +63,22 @@ export function addMutationScopeEntry(db: Db, entry: MutationScopeEntryInput): n
   return Number(result.lastInsertRowid);
 }
 
+/** Every Mutation Scope entry configured for a target — Section 14.8's Immutable Scan Run Configuration Snapshot copies exactly this list into `scan_run_configs.mutation_scope_snapshot_json` at scan start. */
+export function listMutationScopeEntriesForTarget(db: Db, targetId: number): MutationScopeEntryInput[] {
+  const rows = db
+    .prepare("SELECT origin, object_type as objectType, resource_id as resourceId, tenant_id as tenantId, description FROM mutation_scope_resources WHERE target_id = ?")
+    .all(targetId) as unknown as { origin: string | null; objectType: string | null; resourceId: string | null; tenantId: string | null; description: string | null }[];
+  return rows.map((row) => {
+    const entry: MutationScopeEntryInput = { targetId };
+    if (row.origin !== null) entry.origin = row.origin;
+    if (row.objectType !== null) entry.objectType = row.objectType;
+    if (row.resourceId !== null) entry.resourceId = row.resourceId;
+    if (row.tenantId !== null) entry.tenantId = row.tenantId;
+    if (row.description !== null) entry.description = row.description;
+    return entry;
+  });
+}
+
 export class MutationScopeViolationError extends Error {
   constructor(
     public readonly resourceKey: ResourceKey,

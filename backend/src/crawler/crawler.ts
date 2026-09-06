@@ -1,3 +1,4 @@
+import { ScopeViolationError } from "../scope";
 import { canonicalizeCrawlUrl } from "./url-canonicalizer";
 
 export interface CrawlerRequester {
@@ -26,6 +27,8 @@ export interface CrawlResult {
   pages: CrawledPage[];
   /** True if `maxPages` was reached with more links still queued. */
   truncated: boolean;
+  /** A link the crawler discovered but never fetched because it fell outside the configured scope (Section 2's Scope Engine) — recorded, never tested, and never a reason to abort the rest of the crawl (Section 14.4). */
+  outOfScopeSkipped: string[];
 }
 
 const DEFAULT_MAX_DEPTH = 3;
@@ -43,6 +46,7 @@ export async function crawl(startUrl: string, options: CrawlerOptions): Promise<
   const visited = new Set<string>();
   const queue: Array<{ url: string; depth: number }> = [{ url: canonicalizeCrawlUrl(startUrl), depth: 0 }];
   const pages: CrawledPage[] = [];
+  const outOfScopeSkipped: string[] = [];
   let truncated = false;
 
   while (queue.length > 0) {
@@ -55,7 +59,20 @@ export async function crawl(startUrl: string, options: CrawlerOptions): Promise<
     if (visited.has(item.url)) continue;
     visited.add(item.url);
 
-    const response = await options.client.request(item.url, { method: "GET" });
+    let response;
+    try {
+      response = await options.client.request(item.url, { method: "GET" });
+    } catch (err) {
+      // Only a host *discovered during crawling* (depth > 0, i.e. reached
+      // via a link) is ever silently skipped-and-recorded (Section 14.4).
+      // The start URL itself being out of scope is the caller's own
+      // configuration error and must still propagate as one.
+      if (err instanceof ScopeViolationError && item.depth > 0) {
+        outOfScopeSkipped.push(item.url);
+        continue;
+      }
+      throw err;
+    }
     pages.push({ url: item.url, depth: item.depth, status: response.status, html: response.body });
 
     if (item.depth < maxDepth) {
@@ -66,5 +83,5 @@ export async function crawl(startUrl: string, options: CrawlerOptions): Promise<
     }
   }
 
-  return { pages, truncated };
+  return { pages, truncated, outOfScopeSkipped };
 }

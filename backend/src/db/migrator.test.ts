@@ -59,7 +59,7 @@ describe("runMigrations", () => {
 
     const result = runMigrations(db, MIGRATIONS_DIR);
 
-    expect(result.applied).toEqual(["0001_initial.sql", "0002_target_business_profiles.sql"]);
+    expect(result.applied).toEqual(["0001_initial.sql", "0002_target_business_profiles.sql", "0003_scan_run_cancellation.sql"]);
   });
 
   it("creates every table from design.md Decision 5 with no undefined JSON-blob state", () => {

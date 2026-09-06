@@ -56,6 +56,15 @@ describe("consolidateHostCandidates", () => {
     expect(result[0]!.source).toBe("REDIRECT");
   });
 
+  it("consolidates a hostname discovered only via Section 12's real browser-runtime navigation, distinct from a static-crawl link", () => {
+    const scopeValidator = new ScopeValidator(["example.com", "*.example.com"]);
+    const inScope = consolidateHostCandidates(scopeValidator, { browserDiscoveredLinks: ["https://spa.example.com/rendered-link"] });
+    expect(inScope).toEqual([{ hostname: "spa.example.com", source: "BROWSER", inScope: true, queued: true }]);
+
+    const outOfScope = consolidateHostCandidates(scopeValidator, { browserDiscoveredLinks: ["https://not-authorized.com/rendered-link"] });
+    expect(outOfScope).toEqual([{ hostname: "not-authorized.com", source: "BROWSER", inScope: false, queued: false }]);
+  });
+
   it("accepts a bare hostname (e.g. from CNAME/TLS SAN data) without requiring a full URL", () => {
     const scopeValidator = new ScopeValidator(["example.com"]);
     const result = consolidateHostCandidates(scopeValidator, { cnameRecords: ["example.com"] });

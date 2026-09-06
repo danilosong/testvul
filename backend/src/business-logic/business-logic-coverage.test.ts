@@ -4,7 +4,10 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { openDb, type Db } from "../db/connection";
 import { runMigrations } from "../db/migrator";
-import { computeBusinessLogicCoverage } from "./business-logic-coverage";
+import { composeProfiles } from "./profiles/profile-plugin";
+import { GENERIC_PROFILE, type GenericProfileContext } from "./profiles/generic";
+import { createContestProfile } from "./profiles/contest";
+import { buildProfileObjectTypeMap, computeBusinessLogicCoverage } from "./business-logic-coverage";
 
 const MIGRATIONS_DIR = join(__dirname, "..", "..", "db", "migrations");
 
@@ -28,18 +31,39 @@ function freshScanRun(): { db: Db; scanRunId: number; targetId: number } {
   return { db, scanRunId: 1, targetId: 1 };
 }
 
+describe("buildProfileObjectTypeMap (Section 13.28 / 14.2 fix)", () => {
+  it("groups object types by the profile that actually claimed them, de-duplicating repeats", () => {
+    const map = buildProfileObjectTypeMap([
+      { source: "generic", objectType: "Project" },
+      { source: "contest", objectType: "Ticket" },
+      { source: "contest", objectType: "Campaign" },
+      { source: "contest", objectType: "Ticket" },
+    ]);
+    expect(map.get("generic")).toEqual(["Project"]);
+    expect(map.get("contest")).toEqual(["Ticket", "Campaign"]);
+  });
+
+  it("is never derived from business_objects.source — a discovery-provenance label, not a profile name", () => {
+    // OPENAPI/JSON_FIELD/BROWSER_RUNTIME/etc. are never valid map keys here.
+    const map = buildProfileObjectTypeMap([{ source: "generic", objectType: "Project" }]);
+    expect(map.has("JSON_FIELD")).toBe(false);
+    expect(map.has("OPENAPI")).toBe(false);
+  });
+});
+
 describe("computeBusinessLogicCoverage (Section 13.28)", () => {
   it("matches a sample scan's actual business-logic activity, broken down correctly by profile", () => {
     const { db, scanRunId, targetId } = freshScanRun();
 
-    // Generic profile: one "Project" object, one state, one operation.
-    db.prepare("INSERT INTO business_objects (scan_run_id, object_type, source) VALUES (?, 'Project', 'generic')").run(scanRunId);
+    // business_objects.source is a discovery-provenance label (Section
+    // 13.4), never a profile name — profile attribution comes from
+    // composing the real Profile Plugins below instead.
+    db.prepare("INSERT INTO business_objects (scan_run_id, object_type, source) VALUES (?, 'Project', 'URL')").run(scanRunId);
     db.prepare("INSERT INTO business_states (scan_run_id, object_type, state_value) VALUES (?, 'Project', 'ACTIVE')").run(scanRunId);
     db.prepare("INSERT INTO business_operations (scan_run_id, object_type, description) VALUES (?, 'Project', 'PATCH notes')").run(scanRunId);
 
-    // Contest profile: two objects (Campaign, Ticket), two states, one operation.
-    db.prepare("INSERT INTO business_objects (scan_run_id, object_type, source) VALUES (?, 'Campaign', 'contest')").run(scanRunId);
-    db.prepare("INSERT INTO business_objects (scan_run_id, object_type, source) VALUES (?, 'Ticket', 'contest')").run(scanRunId);
+    db.prepare("INSERT INTO business_objects (scan_run_id, object_type, source) VALUES (?, 'Campaign', 'ENDPOINT_NAME')").run(scanRunId);
+    db.prepare("INSERT INTO business_objects (scan_run_id, object_type, source) VALUES (?, 'Ticket', 'JSON_FIELD')").run(scanRunId);
     db.prepare("INSERT INTO business_states (scan_run_id, object_type, state_value) VALUES (?, 'Ticket', 'PAID')").run(scanRunId);
     db.prepare("INSERT INTO business_states (scan_run_id, object_type, state_value) VALUES (?, 'Ticket', 'PENDING_PAYMENT')").run(scanRunId);
     db.prepare("INSERT INTO business_operations (scan_run_id, object_type, description) VALUES (?, 'Ticket', 'payments/webhook')").run(scanRunId);
@@ -69,7 +93,13 @@ describe("computeBusinessLogicCoverage (Section 13.28)", () => {
     db.prepare("INSERT INTO findings (scan_run_id, title, severity) VALUES (?, 'f1', 'HIGH')").run(scanRunId);
     db.prepare("INSERT INTO findings (scan_run_id, title, severity) VALUES (?, 'f2', 'LOW')").run(scanRunId);
 
-    const report = computeBusinessLogicCoverage({ db, scanRunId, targetId });
+    // The real Profile Plugin composition is the single source of truth
+    // for profile attribution (design.md Decision 36).
+    const context: GenericProfileContext = { discoveredObjectTypes: ["Project", "Campaign", "Ticket"] };
+    const contribution = composeProfiles([GENERIC_PROFILE, createContestProfile(true)], context);
+    const profileObjectTypes = buildProfileObjectTypeMap(contribution.candidates as { source: string; objectType: string }[]);
+
+    const report = computeBusinessLogicCoverage({ db, scanRunId, targetId, profileObjectTypes });
 
     expect(report.totalFindings).toBe(2);
     expect(report.byProfile.map((p) => p.profileName)).toEqual(["contest", "generic"]);
@@ -87,23 +117,28 @@ describe("computeBusinessLogicCoverage (Section 13.28)", () => {
       testPlansInconclusive: 1,
     });
 
+    // The Generic Profile is domain-agnostic and always claims every
+    // discovered object type (Section 13.1) — so its coverage here
+    // legitimately includes Campaign/Ticket activity too, on top of its
+    // own Project activity, rather than being artificially narrowed just
+    // because Contest also claims those same two types.
     const generic = report.byProfile.find((p) => p.profileName === "generic")!;
     expect(generic.coverage).toEqual({
-      objectsDiscovered: 1,
-      statesDiscovered: 1,
-      operationsDiscovered: 1,
-      invariantsConfigured: 0,
-      expectationsConfigured: 0,
-      testPlansGenerated: 1,
-      testPlansExecuted: 0,
-      testPlansSkipped: 1,
-      testPlansInconclusive: 0,
+      objectsDiscovered: 3,
+      statesDiscovered: 3,
+      operationsDiscovered: 2,
+      invariantsConfigured: 1,
+      expectationsConfigured: 1,
+      testPlansGenerated: 4,
+      testPlansExecuted: 1,
+      testPlansSkipped: 2,
+      testPlansInconclusive: 1,
     });
   });
 
   it("returns an empty breakdown and zero findings for a scan run with no business-logic activity at all", () => {
     const { db, scanRunId, targetId } = freshScanRun();
-    const report = computeBusinessLogicCoverage({ db, scanRunId, targetId });
+    const report = computeBusinessLogicCoverage({ db, scanRunId, targetId, profileObjectTypes: new Map() });
     expect(report).toEqual({ byProfile: [], totalFindings: 0 });
   });
 });

@@ -1,6 +1,6 @@
 import { canonicalizeUrl, type ScopeValidator } from "../scope";
 
-export type HostDiscoverySource = "REDIRECT" | "LINK" | "SCRIPT" | "CNAME" | "TLS_SAN";
+export type HostDiscoverySource = "REDIRECT" | "LINK" | "SCRIPT" | "CNAME" | "TLS_SAN" | "BROWSER";
 
 export interface HostCandidate {
   hostname: string;
@@ -22,6 +22,8 @@ export interface HostCandidateInputs {
   cnameRecords?: string[];
   /** Bare hostnames from a TLS certificate's Subject Alternative Names. */
   tlsSans?: string[];
+  /** Absolute URLs found only via Section 12's real browser-runtime navigation (e.g. an SPA-rendered link a static HTML fetch would never see) — never merged into `absoluteAnchors`, so its distinct discovery mechanism stays visible in `discovered_hosts`. */
+  browserDiscoveredLinks?: string[];
 }
 
 /** Extracts a hostname via the same canonicalization used everywhere else
@@ -44,6 +46,7 @@ const SOURCE_ORDER: Array<[HostDiscoverySource, keyof HostCandidateInputs]> = [
   ["SCRIPT", "scriptOrApiUrls"],
   ["CNAME", "cnameRecords"],
   ["TLS_SAN", "tlsSans"],
+  ["BROWSER", "browserDiscoveredLinks"],
 ];
 
 /**

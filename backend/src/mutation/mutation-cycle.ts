@@ -14,6 +14,7 @@ import { mutateField } from "./request-mutator";
 import { detectConcurrencySignal } from "../restore/concurrency-signal";
 import { restoreResource, type RestoreOutcome, type RestoreRequester } from "../restore/restore-engine";
 import type { DiscoveredOperation, OperationConfidence } from "../operation-discovery/discovered-operation";
+import { markRestoreIncident } from "./restore-incident";
 
 export interface MutationCycleParams {
   db: Db;
@@ -127,6 +128,7 @@ export async function runMutationTestCycle(params: MutationCycleParams): Promise
         fieldPath: params.fieldPath,
         requiresManualIntervention: restoreResult.outcome !== "RESTORE_OK",
       });
+      if (restoreResult.outcome !== "RESTORE_OK") markRestoreIncident(params.db, params.scanRunId);
 
       return { outcome: restoreResult.outcome, postMutationBody: mutateResponse.body };
     },

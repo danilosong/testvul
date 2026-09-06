@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ScopeViolationError } from "../scope";
 import { crawl, type CrawlerRequester } from "./crawler";
 
 function fakeClient(
@@ -96,5 +97,32 @@ describe("crawl", () => {
     // "a" is visited once as the start page; "b" once when first discovered;
     // "a" is never re-fetched even though it's referenced again.
     expect(requestCount).toBe(2);
+  });
+
+  it("skips a newly-discovered out-of-scope link instead of aborting the rest of the crawl (Section 14.4)", async () => {
+    const client: CrawlerRequester = {
+      request: async (url) => {
+        if (url === "http://out-of-scope.example.test/") throw new ScopeViolationError(url);
+        return {
+          status: 200,
+          body:
+            url === "http://example.com/"
+              ? '<a href="http://out-of-scope.example.test/">x</a><a href="http://example.com/page2">y</a>'
+              : "",
+          headers: {},
+        };
+      },
+    };
+    const result = await crawl("http://example.com/", {
+      client,
+      extractLinks: (html) => {
+        const matches = [...html.matchAll(/href="([^"]+)"/g)].map((m) => m[1]!);
+        return matches;
+      },
+    });
+
+    expect(result.outOfScopeSkipped).toEqual(["http://out-of-scope.example.test/"]);
+    // The rest of the crawl still completed — the out-of-scope link never aborted it.
+    expect(result.pages.map((p) => p.url)).toContain("http://example.com/page2");
   });
 });

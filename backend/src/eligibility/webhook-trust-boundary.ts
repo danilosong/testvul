@@ -1,4 +1,6 @@
-export type WebhookAuthAnalysisResult = "VERIFIED_MECHANISM_DETECTED" | "NO_MECHANISM_OBSERVED" | "INCONCLUSIVE";
+import type { WebhookAuthAnalysisResult } from "../business-logic/webhook-authentication-analysis";
+
+export type { WebhookAuthAnalysisResult };
 
 /**
  * Classifies a webhook/callback's authentication analysis into the
