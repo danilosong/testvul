@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Reports</title>
+  </head>
+  <body>
+    <a id="export-link" href="/api/export-report" download="report.csv">Export Report</a>
+    <form id="upload-form">
+      <input type="file" name="file" />
+      <button type="submit">Upload</button>
+    </form>
+    <div id="upload-status"></div>
+    <script src="/app-assets/reports.js"></script>
+  </body>
+</html>

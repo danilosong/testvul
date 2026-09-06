@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Vulnerable Fixture App</title>
+    <!-- Static, server-rendered GTM reference (Section 11.7 fixture control case) — deliberately distinct
+         from static/app/projects.js's client-side dynamic id construction, which a static HTML/JS fetch
+         alone cannot resolve a real id from. -->
+    <script src="https://www.googletagmanager.com/gtm.js?id=GTM-REAL0001"></script>
+  </head>
+  <body>
+    <h1>Vulnerable Fixture App</h1>
+    <nav>
+      <a href="/projects">Projects</a>
+      <a href="/api/openapi.json">API docs</a>
+    </nav>
+    <form action="/api/projects/1" method="post">
+      <input type="text" name="notes" />
+      <button type="submit">Save</button>
+    </form>
+    <script src="/app.js"></script>
+  </body>
+</html>

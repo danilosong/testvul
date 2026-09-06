@@ -1,0 +1,34 @@
+{
+  "name": "security-configuration-auditor-backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Security Configuration Auditor - backend service",
+  "type": "commonjs",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:integration": "vitest run --config vitest.integration.config.mts",
+    "test:all": "npm run test && npm run test:integration"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "acorn": "^8.18.0",
+    "acorn-walk": "^8.3.5",
+    "cheerio": "^1.2.0",
+    "fastify": "^5.12.3",
+    "undici": "^8.10.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "playwright": "^1.63.0",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.5.4",
+    "vitest": "^5.0.0"
+  }
+}

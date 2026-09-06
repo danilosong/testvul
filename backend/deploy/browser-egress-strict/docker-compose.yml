@@ -1,0 +1,45 @@
+# Reference BROWSER_EGRESS_STRICT deployment (design.md Decision 34).
+#
+# The browser-worker container's only permitted network egress, at the
+# Docker network-policy level, is the controlled-egress-proxy container —
+# every other outbound destination is dropped before it ever reaches the
+# Chromium process's own network stack. This is the OS/network-level
+# backstop behind the proxy-configuration control every deployment already
+# gets (Playwright's `proxy.server` launch option); STRICT is what you get
+# when both layers are actually in place, not the proxy-configuration
+# layer alone.
+#
+# Set BROWSER_EGRESS_ISOLATED=true on the app container only once this
+# (or an equivalent) isolation is genuinely running — never as a way to
+# "turn on" the label without the isolation actually existing.
+services:
+  controlled-egress-proxy:
+    # Built from this codebase — see src/browser/controlled-egress-proxy.ts.
+    build:
+      context: ../..
+      dockerfile: deploy/browser-egress-strict/proxy.Dockerfile
+    networks:
+      - egress
+      - proxy-only
+
+  browser-worker:
+    image: mcr.microsoft.com/playwright:v1-noble
+    networks:
+      - proxy-only # no other network attached — no other egress path exists
+    environment:
+      HTTPS_PROXY: http://controlled-egress-proxy:8080
+      HTTP_PROXY: http://controlled-egress-proxy:8080
+
+  app:
+    build:
+      context: ../..
+    networks:
+      - proxy-only
+      - internal
+    environment:
+      BROWSER_EGRESS_ISOLATED: "true"
+
+networks:
+  proxy-only: {} # browser-worker <-> controlled-egress-proxy only
+  egress: {} # controlled-egress-proxy's own path to the real internet/target
+  internal: {} # app <-> its own database etc., unrelated to browser egress
