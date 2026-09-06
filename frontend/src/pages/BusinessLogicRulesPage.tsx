@@ -148,6 +148,15 @@ export function BusinessLogicRulesPage() {
     await reloadConfiguredRules();
   }
 
+  async function handleEditExpectation(expectation: BusinessExpectation) {
+    const expectedValue = window.prompt("Novo valor esperado", expectation.expectedValue);
+    if (expectedValue === null || expectedValue === expectation.expectedValue) return;
+    await fetchJson(`/api/business-expectations/${expectation.id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expectedValue }),
+    });
+    await reloadConfiguredRules();
+  }
+
   async function handleCreateInvariant(event: React.FormEvent) {
     event.preventDefault();
     if (!invName || !invObjectType) return;
@@ -166,14 +175,23 @@ export function BusinessLogicRulesPage() {
     await reloadConfiguredRules();
   }
 
+  async function handleEditInvariant(invariant: BusinessInvariant) {
+    const name = window.prompt("Novo nome da invariante", invariant.name);
+    if (name === null || name === invariant.name) return;
+    await fetchJson(`/api/business-invariants/${invariant.id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }),
+    });
+    await reloadConfiguredRules();
+  }
+
   return (
     <div>
-      <h1>Business Logic Rules</h1>
+      <h1>Regras de lógica de negócio</h1>
 
       <label>
-        Target ID:{" "}
+        ID do alvo:{" "}
         <input
-          aria-label="Target ID"
+          aria-label="ID do alvo"
           type="number"
           value={targetId}
           onChange={(e) => setTargetId(Number(e.target.value) || 1)}
@@ -181,17 +199,17 @@ export function BusinessLogicRulesPage() {
       </label>
 
       {/* ── View 1: Configured Rules — what the operator has set up ── */}
-      <section id="configured-rules-view" aria-label="Configured Rules">
-        <h2>Configured Rules</h2>
+      <section id="configured-rules-view" aria-label="Regras configuradas">
+        <h2>Regras configuradas</h2>
 
-        <h3>Profiles</h3>
+        <h3>Perfis</h3>
         <ul id="profile-toggles">
           {KNOWN_PROFILES.map((name) => (
             <li key={name}>
               <label>
                 <input
                   type="checkbox"
-                  aria-label={`Enable ${name} profile`}
+                  aria-label={`Ativar perfil ${name}`}
                   checked={isProfileEnabled(name)}
                   onChange={(e) => toggleProfile(name, e.target.checked)}
                 />
@@ -201,33 +219,33 @@ export function BusinessLogicRulesPage() {
           ))}
         </ul>
 
-        <h3>Business Expectations</h3>
+        <h3>Expectativas de negócio</h3>
         <form onSubmit={handleCreateExpectation}>
-          <input aria-label="Object type" placeholder="e.g. Campaign" value={expObjectType} onChange={(e) => setExpObjectType(e.target.value)} />
+          <input aria-label="Tipo do objeto" placeholder="Ex.: Campaign" value={expObjectType} onChange={(e) => setExpObjectType(e.target.value)} />
           <input
-            aria-label="Property or action"
-            placeholder="e.g. currentLowestEligibleNumber"
+            aria-label="Propriedade ou ação"
+            placeholder="Ex.: currentLowestEligibleNumber"
             value={expPropertyOrAction}
             onChange={(e) => setExpPropertyOrAction(e.target.value)}
           />
-          <input aria-label="Expected value" placeholder="e.g. PRIVATE" value={expExpectedValue} onChange={(e) => setExpExpectedValue(e.target.value)} />
-          <select aria-label="Expectation severity" value={expSeverity} onChange={(e) => setExpSeverity(e.target.value as BusinessSeverity)}>
+          <input aria-label="Valor esperado" placeholder="Ex.: PRIVATE" value={expExpectedValue} onChange={(e) => setExpExpectedValue(e.target.value)} />
+          <select aria-label="Severidade da expectativa" value={expSeverity} onChange={(e) => setExpSeverity(e.target.value as BusinessSeverity)}>
             {(["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"] as BusinessSeverity[]).map((s) => (
               <option key={s} value={s}>
                 {s}
               </option>
             ))}
           </select>
-          <button type="submit">Add expectation</button>
+          <button type="submit">Adicionar expectativa</button>
         </form>
         <table id="business-expectations-table">
           <thead>
             <tr>
-              <th>Object type</th>
-              <th>Property/action</th>
-              <th>Type</th>
-              <th>Expected value</th>
-              <th>Severity</th>
+              <th>Tipo do objeto</th>
+              <th>Propriedade/ação</th>
+              <th>Tipo</th>
+              <th>Valor esperado</th>
+              <th>Severidade</th>
               <th></th>
             </tr>
           </thead>
@@ -240,32 +258,33 @@ export function BusinessLogicRulesPage() {
                 <td>{expectation.expectedValue}</td>
                 <td>{expectation.severity}</td>
                 <td>
-                  <button onClick={() => handleDeleteExpectation(expectation.id)}>Delete</button>
+                  <button onClick={() => handleEditExpectation(expectation)}>Editar</button>
+                  <button onClick={() => handleDeleteExpectation(expectation.id)}>Excluir</button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
 
-        <h3>Business Invariants</h3>
+        <h3>Invariantes de negócio</h3>
         <form onSubmit={handleCreateInvariant}>
-          <input aria-label="Invariant name" placeholder="e.g. Ticket.number is immutable after PAID" value={invName} onChange={(e) => setInvName(e.target.value)} />
-          <input aria-label="Invariant object type" placeholder="e.g. Ticket" value={invObjectType} onChange={(e) => setInvObjectType(e.target.value)} />
-          <select aria-label="Invariant severity" value={invSeverity} onChange={(e) => setInvSeverity(e.target.value as BusinessSeverity)}>
+          <input aria-label="Nome da invariante" placeholder="Ex.: Número do ticket é imutável após pagamento" value={invName} onChange={(e) => setInvName(e.target.value)} />
+          <input aria-label="Tipo de objeto da invariante" placeholder="Ex.: Ticket" value={invObjectType} onChange={(e) => setInvObjectType(e.target.value)} />
+          <select aria-label="Severidade da invariante" value={invSeverity} onChange={(e) => setInvSeverity(e.target.value as BusinessSeverity)}>
             {(["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"] as BusinessSeverity[]).map((s) => (
               <option key={s} value={s}>
                 {s}
               </option>
             ))}
           </select>
-          <button type="submit">Add invariant</button>
+          <button type="submit">Adicionar invariante</button>
         </form>
         <table id="business-invariants-table">
           <thead>
             <tr>
-              <th>Name</th>
-              <th>Object type</th>
-              <th>Severity</th>
+              <th>Nome</th>
+              <th>Tipo do objeto</th>
+              <th>Severidade</th>
               <th></th>
             </tr>
           </thead>
@@ -276,7 +295,8 @@ export function BusinessLogicRulesPage() {
                 <td>{invariant.objectType}</td>
                 <td>{invariant.severity}</td>
                 <td>
-                  <button onClick={() => handleDeleteInvariant(invariant.id)}>Delete</button>
+                  <button onClick={() => handleEditInvariant(invariant)}>Editar</button>
+                  <button onClick={() => handleDeleteInvariant(invariant.id)}>Excluir</button>
                 </td>
               </tr>
             ))}
@@ -285,9 +305,9 @@ export function BusinessLogicRulesPage() {
       </section>
 
       <label>
-        Scan run:{" "}
-        <select aria-label="Scan run" value={selectedScanRunId} onChange={(e) => setSelectedScanRunId(e.target.value ? Number(e.target.value) : "")}>
-          <option value="">Select scan run…</option>
+        Execução da auditoria:{" "}
+        <select aria-label="Execução da auditoria" value={selectedScanRunId} onChange={(e) => setSelectedScanRunId(e.target.value ? Number(e.target.value) : "")}>
+          <option value="">Selecione uma execução…</option>
           {scanRuns.map((run) => (
             <option key={run.id} value={run.id}>
               #{run.id} — {run.state} — {run.startedAt}
@@ -297,14 +317,14 @@ export function BusinessLogicRulesPage() {
       </label>
 
       {/* ── View 2: Observed Behavior — what the engine itself found, never compared against a rule here ── */}
-      <section id="observed-behavior-view" aria-label="Observed Behavior">
-        <h2>Observed Behavior</h2>
+      <section id="observed-behavior-view" aria-label="Comportamento observado">
+        <h2>Comportamento observado</h2>
         <table id="observed-behavior-table">
           <thead>
             <tr>
-              <th>Object type</th>
-              <th>Property/action</th>
-              <th>Observed value</th>
+              <th>Tipo do objeto</th>
+              <th>Propriedade/ação</th>
+              <th>Valor observado</th>
             </tr>
           </thead>
           <tbody>
@@ -320,16 +340,16 @@ export function BusinessLogicRulesPage() {
       </section>
 
       {/* ── View 3: Violations — findings only, an OBSERVED/INFERRED hypothesis is never labeled confirmed here ── */}
-      <section id="violations-view" aria-label="Violations">
-        <h2>Violations</h2>
+      <section id="violations-view" aria-label="Violações">
+        <h2>Violações</h2>
         <table id="violations-table">
           <thead>
             <tr>
-              <th>Title</th>
-              <th>Severity</th>
-              <th>Category</th>
-              <th>Proof level</th>
-              <th>Status</th>
+              <th>Título</th>
+              <th>Severidade</th>
+              <th>Categoria</th>
+              <th>Nível de prova</th>
+              <th>Estado</th>
             </tr>
           </thead>
           <tbody>

@@ -35,7 +35,9 @@ export function PermissionPolicyPage() {
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react/set-state-in-effect
     reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function handleSubmit(event: React.FormEvent) {
@@ -59,33 +61,33 @@ export function PermissionPolicyPage() {
 
   return (
     <div>
-      <h1>Expected Permission Policy</h1>
+      <h1>Política esperada de permissões</h1>
 
       <form onSubmit={handleSubmit}>
         <select
-          aria-label="Profile"
+          aria-label="Perfil"
           value={formProfileId}
           onChange={(e) => setFormProfileId(e.target.value ? Number(e.target.value) : "")}
         >
-          <option value="">Select profile…</option>
+          <option value="">Selecione um perfil…</option>
           {profiles.map((profile) => (
             <option key={profile.id} value={profile.id}>
               {profile.name}
             </option>
           ))}
         </select>
-        <input aria-label="Action" placeholder="e.g. CAMPAIGN_EDIT" value={formAction} onChange={(e) => setFormAction(e.target.value)} />
-        <select aria-label="Expected" value={formExpected} onChange={(e) => setFormExpected(e.target.value as "ALLOWED" | "DENIED")}>
-          <option value="ALLOWED">ALLOWED</option>
-          <option value="DENIED">DENIED</option>
+        <input aria-label="Ação" placeholder="Ex.: CAMPAIGN_EDIT" value={formAction} onChange={(e) => setFormAction(e.target.value)} />
+        <select aria-label="Resultado esperado" value={formExpected} onChange={(e) => setFormExpected(e.target.value as "ALLOWED" | "DENIED")}>
+          <option value="ALLOWED">Permitido</option>
+          <option value="DENIED">Negado</option>
         </select>
-        <button type="submit">Add expectation</button>
+        <button type="submit">Adicionar expectativa</button>
       </form>
 
       <table id="permission-matrix">
         <thead>
           <tr>
-            <th>Action</th>
+            <th>Ação</th>
             {profiles.map((profile) => (
               <th key={profile.id}>{profile.name}</th>
             ))}

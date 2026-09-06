@@ -69,6 +69,10 @@ export function listResourceOwnership(db: Db, targetId: number): ResourceOwnersh
   return rows.map(rowToOwnership);
 }
 
+export function deleteResourceOwnership(db: Db, id: number): boolean {
+  return db.prepare("DELETE FROM resource_ownership WHERE id = ?").run(id).changes > 0;
+}
+
 /** The lookup the (future) Automated Authorization Matrix and IDOR scanner use directly. */
 export function getResourceOwner(db: Db, resourceKey: ResourceKey): number | null {
   const row = db

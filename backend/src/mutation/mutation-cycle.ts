@@ -3,9 +3,9 @@ import type { ResourceKey } from "./resource-key";
 import type { JournalInitiator } from "./mutation-journal";
 import { assertFieldNotDenylisted } from "./sensitive-field-denylist";
 import { assertResourceNotFrozen } from "./mutation-fail-safe";
-import { assertReversibilityProven } from "./reversibility";
-import { assertMutationScopeAllowed } from "./mutation-scope";
-import { getScanRunEnvironment } from "./scan-run-environment";
+import { assessReversibility, assertReversibilityProven } from "./reversibility";
+import { assertMutationScopeAllowed, classifyMutationScope } from "./mutation-scope";
+import { assertEnvironmentMutationPolicy, getScanRunEnvironment, isScanRunMutationAuthorized } from "./scan-run-environment";
 import { loadConfig } from "../config";
 import { withResourceLock, type WithResourceLockOptions } from "./with-resource-lock";
 import { recordJournalState } from "./mutation-journal-repository";
@@ -62,9 +62,25 @@ export async function runMutationTestCycle(params: MutationCycleParams): Promise
     testCapabilityEnabled: loadConfig().localFixtureTestCapability,
   });
   assertResourceNotFrozen(params.db, params.resourceKey);
+  const writeMethod = params.writeMethod ?? "PATCH";
+  const mutationScopeClassification = classifyMutationScope(params.db, params.resourceKey);
+  const reversibility = assessReversibility({
+    db: params.db,
+    resourceKey: params.resourceKey,
+    operations: params.operations,
+    resourceUrl: params.resourceUrl,
+    writeMethod,
+    minConfidence: params.minConfidence ?? "MEDIUM",
+  });
+  assertEnvironmentMutationPolicy({
+    environment: targetEnvironment,
+    mutationAuthorized: isScanRunMutationAuthorized(params.db, params.scanRunId),
+    isTestResource: mutationScopeClassification === "TEST_RESOURCE",
+    reversibilityProven: reversibility.proven,
+    backupRestoreCapable: true,
+  });
   assertMutationScopeAllowed(params.db, params.resourceKey, params.advancedOverrideConfirmed ?? false);
 
-  const writeMethod = params.writeMethod ?? "PATCH";
   assertReversibilityProven({
     db: params.db,
     resourceKey: params.resourceKey,

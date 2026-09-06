@@ -66,6 +66,50 @@ body {
   margin: 0;
 }
 
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 18px 28px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+.app-header nav,
+.action-nav,
+.download-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+a { color: var(--accent); }
+.brand { color: var(--text-h); font-weight: 700; text-decoration: none; }
+main, #root > .app-shell > div { padding: 24px 32px 48px; text-align: left; }
+section { margin-top: 28px; }
+form { display: grid; gap: 16px; max-width: 760px; }
+label { display: grid; gap: 6px; color: var(--text-h); }
+input, select, textarea, button { font: inherit; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; }
+button, .button-link { background: var(--accent); color: white; border: 0; cursor: pointer; text-decoration: none; padding: 10px 14px; border-radius: 8px; }
+button:disabled { opacity: .5; cursor: not-allowed; }
+fieldset, dialog { border: 1px solid var(--border); border-radius: 10px; padding: 16px; background: var(--bg); color: var(--text); }
+dialog { position: static; margin: 0; width: auto; }
+table { width: 100%; border-collapse: collapse; margin-top: 14px; }
+th, td { border-bottom: 1px solid var(--border); padding: 10px; text-align: left; }
+.split-view { display: grid; grid-template-columns: minmax(220px, .8fr) minmax(320px, 1.2fr); gap: 28px; }
+.metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+.metric-grid article { display: grid; padding: 16px; border: 1px solid var(--border); border-radius: 10px; }
+.metric-grid strong { font-size: 28px; color: var(--text-h); }
+.stage-list { display: grid; gap: 8px; padding: 0; list-style: none; }
+.stage-list li { display: flex; justify-content: space-between; padding: 12px; border: 1px solid var(--border); border-radius: 8px; }
+pre { overflow: auto; padding: 16px; background: var(--code-bg); border-radius: 8px; }
+
+@media (max-width: 760px) {
+  .app-header, .split-view { display: grid; grid-template-columns: 1fr; }
+  main, #root > .app-shell > div { padding: 18px; }
+}
+
 h1,
 h2 {
   font-family: var(--heading);

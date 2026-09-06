@@ -28,8 +28,10 @@ export interface HostCandidateInputs {
 
 /** Extracts a hostname via the same canonicalization used everywhere else
  * (case-folding, trailing-dot stripping, IDN/punycode) — never raw string
- * handling — whether given a full URL or a bare hostname (CNAME/SAN data). */
-function extractHostname(input: string): string | null {
+ * handling — whether given a full URL or a bare hostname (CNAME/SAN data).
+ * Exported for Section 16.2's Target DNS input normalization, which
+ * accepts the identical scheme-less-or-not shapes. */
+export function extractHostname(input: string): string | null {
   const trimmed = input.trim();
   if (!trimmed) return null;
   const asUrl = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}/`;

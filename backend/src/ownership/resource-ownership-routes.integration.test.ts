@@ -67,4 +67,19 @@ describe("Resource Ownership Management API", () => {
     const res = await app.inject({ method: "POST", url: "/api/resource-ownership", payload: { resourceKey: { targetId: 1 } } });
     expect(res.statusCode).toBe(400);
   });
+
+  it("removes a declared mapping from the authorization matrix", async () => {
+    const app = freshApp();
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/resource-ownership",
+      payload: {
+        resourceKey: { targetId: 1, origin: "https://example.com", objectType: "project", resourceId: "123" },
+        ownerAuthProfileId: 1,
+      },
+    });
+    const id = created.json().id as number;
+    expect((await app.inject({ method: "DELETE", url: `/api/resource-ownership/${id}` })).statusCode).toBe(204);
+    expect((await app.inject({ method: "GET", url: "/api/resource-ownership?targetId=1" })).json()).toEqual([]);
+  });
 });

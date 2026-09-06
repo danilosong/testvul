@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type { Db } from "../db/connection";
-import { declareResourceOwnership, listResourceOwnership } from "./resource-ownership-repository";
+import { declareResourceOwnership, deleteResourceOwnership, listResourceOwnership } from "./resource-ownership-repository";
 import type { ResourceOwnershipInput } from "./resource-ownership";
 
 export interface ResourceOwnershipRoutesOptions {
@@ -25,6 +25,11 @@ export function resourceOwnershipRoutes(app: FastifyInstance, options: ResourceO
     const targetId = Number(request.query.targetId);
     if (!targetId) return reply.code(400).send({ error: "targetId query parameter is required" });
     return listResourceOwnership(db, targetId);
+  });
+
+  app.delete<{ Params: { id: string } }>("/api/resource-ownership/:id", async (request, reply) => {
+    if (!deleteResourceOwnership(db, Number(request.params.id))) return reply.code(404).send({ error: "NOT_FOUND" });
+    return reply.code(204).send();
   });
 
   done();

@@ -100,3 +100,15 @@ export function getDiscoveredEndpointById(db: Db, endpointId: number): Discovere
   if (row.auth_required !== null) summary.authRequired = row.auth_required === 1;
   return summary;
 }
+
+export function listDiscoveredEndpointSummaries(db: Db, scanRunId: number): DiscoveredEndpointSummary[] {
+  const rows = db
+    .prepare("SELECT id, method, url, classification, content_type, discovered_via, auth_required FROM discovered_endpoints WHERE scan_run_id = ? ORDER BY id")
+    .all(scanRunId) as unknown as DiscoveredEndpointSummaryRow[];
+  return rows.map((row) => {
+    const summary: DiscoveredEndpointSummary = { id: row.id, method: row.method, url: row.url, classification: row.classification, discoveredVia: row.discovered_via };
+    if (row.content_type !== null) summary.contentType = row.content_type;
+    if (row.auth_required !== null) summary.authRequired = row.auth_required === 1;
+    return summary;
+  });
+}

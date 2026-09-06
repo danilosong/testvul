@@ -8,6 +8,10 @@ import { authProfilesRoutes } from "./auth/auth-profiles-routes";
 import { resourceOwnershipRoutes } from "./ownership/resource-ownership-routes";
 import { authorizationExpectationsRoutes } from "./auth/authorization-expectations-routes";
 import { businessLogicRulesRoutes } from "./business-logic/business-logic-rules-routes";
+import { newSecurityAuditRoutes } from "./target-configuration/new-security-audit-routes";
+import { startScanRoutes } from "./target-configuration/start-scan-routes";
+import { mutationScopeRoutes } from "./target-configuration/mutation-scope-routes";
+import { findingsReportingRoutes } from "./findings-reporting/findings-reporting-routes";
 
 interface AttackSurfaceRequestBody {
   targetUrl: string;
@@ -28,6 +32,10 @@ export function buildApp(db: Db): FastifyInstance {
   app.register(resourceOwnershipRoutes, { db });
   app.register(authorizationExpectationsRoutes, { db });
   app.register(businessLogicRulesRoutes, { db });
+  app.register(newSecurityAuditRoutes, { db });
+  app.register(startScanRoutes, { db });
+  app.register(mutationScopeRoutes, { db });
+  app.register(findingsReportingRoutes, { db });
 
   app.post<{ Body: AttackSurfaceRequestBody }>("/api/discovery/attack-surface", async (request, reply) => {
     const { targetUrl, scope, allowPrivateNetworks, maxDepth, maxPages } = request.body;

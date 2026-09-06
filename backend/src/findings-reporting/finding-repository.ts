@@ -62,3 +62,8 @@ export function listFindings(db: Db, scanRunId: number): Finding[] {
   const rows = db.prepare("SELECT * FROM findings WHERE scan_run_id = ? ORDER BY id").all(scanRunId) as unknown as FindingRow[];
   return rows.map(rowToFinding);
 }
+
+export function getFinding(db: Db, id: number): Finding | null {
+  const row = db.prepare("SELECT * FROM findings WHERE id = ?").get(id) as unknown as FindingRow | undefined;
+  return row ? rowToFinding(row) : null;
+}

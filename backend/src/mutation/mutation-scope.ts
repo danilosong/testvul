@@ -46,6 +46,10 @@ export interface MutationScopeEntryInput {
   description?: string;
 }
 
+export interface MutationScopeEntry extends MutationScopeEntryInput {
+  id: number;
+}
+
 /** Declares one Mutation Scope entry. A future Section 16 UI/API owns full CRUD over this table; this is the minimal write path this section needs. */
 export function addMutationScopeEntry(db: Db, entry: MutationScopeEntryInput): number {
   const result = db
@@ -77,6 +81,35 @@ export function listMutationScopeEntriesForTarget(db: Db, targetId: number): Mut
     if (row.description !== null) entry.description = row.description;
     return entry;
   });
+}
+
+export function listMutationScopeEntryRecords(db: Db, targetId: number): MutationScopeEntry[] {
+  const rows = db
+    .prepare(
+      "SELECT id, origin, object_type as objectType, resource_id as resourceId, tenant_id as tenantId, description FROM mutation_scope_resources WHERE target_id = ? ORDER BY id",
+    )
+    .all(targetId) as unknown as {
+    id: number;
+    origin: string | null;
+    objectType: string | null;
+    resourceId: string | null;
+    tenantId: string | null;
+    description: string | null;
+  }[];
+
+  return rows.map((row) => {
+    const entry: MutationScopeEntry = { id: row.id, targetId };
+    if (row.origin !== null) entry.origin = row.origin;
+    if (row.objectType !== null) entry.objectType = row.objectType;
+    if (row.resourceId !== null) entry.resourceId = row.resourceId;
+    if (row.tenantId !== null) entry.tenantId = row.tenantId;
+    if (row.description !== null) entry.description = row.description;
+    return entry;
+  });
+}
+
+export function deleteMutationScopeEntry(db: Db, targetId: number, id: number): boolean {
+  return db.prepare("DELETE FROM mutation_scope_resources WHERE id = ? AND target_id = ?").run(id, targetId).changes > 0;
 }
 
 export class MutationScopeViolationError extends Error {
