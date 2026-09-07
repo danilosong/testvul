@@ -4,6 +4,7 @@ import { MutationAuthorizationRequiredError, startScan, type StartScanInput } fr
 import { listAuditEvents, recordAuditEvent } from "../mutation/audit-events-repository";
 import { PIPELINE_STAGES } from "../scan-orchestration/pipeline-sequencer";
 import { requestScanCancellation } from "../scan-orchestration/scan-cancellation";
+import { runLiveDiscoveryScan } from "../scan-orchestration/live-discovery-runner";
 
 export interface StartScanRoutesOptions {
   db: Db;
@@ -15,6 +16,11 @@ export function startScanRoutes(app: FastifyInstance, options: StartScanRoutesOp
   app.post<{ Params: { targetId: string }; Body: Omit<StartScanInput, "targetId"> }>("/api/targets/:targetId/scans", async (request, reply) => {
     try {
       const result = startScan(db, { targetId: Number(request.params.targetId), ...request.body });
+      // Fire-and-forget: the HTTP response reports the scan run was created,
+      // not that it finished — progress is polled via GET .../progress.
+      void runLiveDiscoveryScan(db, result.scanRunId).catch((error: Error) => {
+        app.log.error({ err: error, scanRunId: result.scanRunId }, "live discovery scan failed");
+      });
       return reply.code(201).send(result);
     } catch (err) {
       if (err instanceof MutationAuthorizationRequiredError) {
